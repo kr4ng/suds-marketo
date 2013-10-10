@@ -158,4 +158,4 @@ class Client(object):
             lead_key.keyType.value, lead_key.keyValue = lead
             lead_list_keys.leadKey.append(lead_key)
         return self.call_service('requestCampaign', source, campaign_id,
-            lead_list, program_name, campaign_name, program_token_list)
+            lead_list_keys, program_name, campaign_name, program_token_list)
