@@ -135,3 +135,27 @@ class Client(object):
         for lead in lead_list:
             lead_record_list.leadRecord.append(self.build_lead_record(lead[0], lead[1]))
         return self.call_service('syncMultipleLeads', lead_record_list, dedup_enabled)
+
+    def request_campaign(self, source=None, campaign_id=None,
+            lead_list=[], program_name=None, campaign_name=None,
+            program_token_list=None):
+        """
+        :param source: ReqCampSourceType - Enumeration defined in WSDL
+        :param campaign_id: integer - Optional: Marketo system ID (can use campaignName instead)
+        :param campaign_name: string - Optional: Campaign name if ID not used
+        :param lead_list: list of tuples:
+            format: ((KeyType, KeyValue), )
+            example: (("EMAIL", "a@b.com"), ("EMAIL", "c@b.com"))
+            KeyType is a LeadKeyRef - Enumeration defined in WSDL
+                example: self.LeadKeyRef.EMAIL
+        :param program_name: string - Optional: Only required if using tokens
+        :param program_token_list - Array of My Tokens to be used in campaign
+        """
+        source = source or self.ReqCampSourceType.MKTOWS
+        lead_list_keys = self.ArrayOfLeadKey
+        for lead in lead_list:
+            lead_key = self.leadKey
+            lead_key.keyType.value, lead_key.keyValue = lead
+            lead_list_keys.leadKey.append(lead_key)
+        return self.call_service('requestCampaign', source, campaign_id,
+            lead_list, program_name, campaign_name, program_token_list)
