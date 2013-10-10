@@ -154,7 +154,7 @@ class Client(object):
         source = source or self.ReqCampSourceType.MKTOWS
         lead_list_keys = self.ArrayOfLeadKey
         for lead in lead_list:
-            lead_key = self.leadKey
+            lead_key = self.LeadKey
             lead_key.keyType.value, lead_key.keyValue = lead
             lead_list_keys.leadKey.append(lead_key)
         return self.call_service('requestCampaign', source, campaign_id,
