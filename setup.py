@@ -13,7 +13,6 @@ setup(
     description='Python wrapper of the Marketo SOAP Api using SUDS.',
     long_description=open('README.md').read(),
     install_requires=[
-        "Django >= 1.3",
         "suds == 0.4"
     ],
     zip_safe=False,
