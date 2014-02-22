@@ -14,14 +14,14 @@ def sign(message, encryption_key):
     return digest.hexdigest().lower()
 
 class Client(object):
-
+    
     """
     Wrapper of the Marketo SOAP Api
 
     Marketo SOAP Api doc: https://jira.talendforge.org/secure/attachmentzip/unzip/167201/49761%5B1%5D/Marketo%20Enterprise%20API%202%200.pdf
     """
 
-    MARKETO_WSDL = 'http://app.marketo.com/soap/mktows/2_0?WSDL'
+    MARKETO_WSDL = 'http://app.marketo.com/soap/mktows/2_2?WSDL'
     """Url of the Marketo wsdl file"""
 
     suds_types = []
@@ -101,7 +101,18 @@ class Client(object):
         """
         self.set_header()
         return self.__getattribute__(name)(*args, **kwargs)
-
+    
+    def get_lead(self, keyValue, keyType):
+        lead_key = self.LeadKey
+        if keyType == 'Email':
+            lead_key.keyType = self.LeadKeyRef.EMAIL
+        if keyType == 'Cookie':
+            lead_key.keyType = self.LeadKeyRef.COOKIE
+        if keyType == 'IDNUM':
+            lead_key.keyType = self.LeadKeyRef.IDNUM
+        lead_key.keyValue = keyValue
+        return self.call_service('getLead', lead_key)
+    '''
     def get_lead(self, email):
         """
         :param email: email address of the lead to retry
@@ -112,6 +123,18 @@ class Client(object):
         lead_key.keyType = self.LeadKeyRef.EMAIL
         lead_key.keyValue = email
         return self.call_service('getLead', lead_key)
+    '''
+    def get_lead_IDNUM(self, num):
+        ID = self.LeadKey
+        ID.keyType = self.LeadKeyRef.IDNUM
+        ID.keyValue = num
+        return self.call_service('getLead', ID)
+    
+    def get_lead_by_cookie(self, cook):
+        cookie = self.LeadKey
+        cookie.keyType = self.LeadKeyRef.COOKIE
+        cookie.keyValue = cook
+        return self.call_service('getLead', cookie)
 
     def sync_lead(self, email, attributes, return_lead=False):
         """
@@ -153,9 +176,96 @@ class Client(object):
         """
         source = source or self.ReqCampSourceType.MKTOWS
         lead_list_keys = self.ArrayOfLeadKey
+        ptl = self.__getattribute__('ArrayOfAttribute')
+        pta = self.__getattribute__('Attribute')
+        pta.attrName = program_token_list[0]
+        pta.attrValue = program_token_list[1]
+        ptl.attribute.append(pta)
+        #tokens = self.__getattribute__('ArrayOfAttribute')
+        #attrs = self.__getattribute__('Attribute')
         for lead in lead_list:
             lead_key = self.LeadKey
             lead_key.keyType.value, lead_key.keyValue = lead
             lead_list_keys.leadKey.append(lead_key)
+            '''
+        for token in program_token_list:
+            print token
+            attrs.attrName = token[0]
+            attrs.attrType = token[1]
+            attrs.attrValue = token[2]
+            program_token_list.append(attrs)
+            print program_token_list
+            break
+            '''
         return self.call_service('requestCampaign', source, campaign_id,
-            lead_list_keys, program_name, campaign_name, program_token_list)
+            lead_list_keys, program_name, campaign_name, ptl)
+        
+    def merge_leads(self, winningleadIDnum, losingleadsIDnum):
+        """
+        I should make this more portable lol.
+        :param winningleadkeylist: Type is ArrayofAttributes list of attributes as tuples
+            format: ((Name, Type, Value), )
+            example: (('FirstName', 'string', 'Spong'), ('LastName', 'string', 'Bob'))
+        :param losingleads: Type is ArrayOfKeyList is an array of ArrayofAttributes
+            example:[(('FirstName', 'string', 'Spong'), ('LastName', 'string', 'Bob')), 
+                    (('FirstName', 'string', 'Spong'), ('LastName', 'string', 'Bob')),...]
+        """
+        win = self.__getattribute__('Attribute')
+        win.attrName = 'IDNUM'
+        win.attrValue = winningleadIDnum
+        winning_lead_key_list = self.__getattribute__('ArrayOfAttribute')
+        winning_lead_key_list.attribute.append(win)
+        try:
+            lose = self.__getattribute__('Attribute')
+            lose.attrName = 'IDNUM'
+            lose.attrValue = losingleadsIDnum
+            losing_lead_key_list = self.__getattribute__('ArrayOfKeyList')
+            attr = self.__getattribute__('ArrayOfAttribute')
+            losing_lead_key_list.keyList.append(attr)
+            losing_lead_key_list.keyList[0].attribute.append(lose)
+        except:
+            pass
+        return self.call_service('mergeLeads', winning_lead_key_list, losing_lead_key_list)
+
+    def get_lead_activity(self, cookie, acttype=None):
+    	"""
+    	key and type.
+    	:param cookie: the marketo cookie
+    	I'll take this cookie and get all the lead activity
+    	:param type: can either be None, Email Activity, Personal Information, Website Activity, Score, Interesting Moments
+    	if it is personal information then I am probably going to have to do a getlead call with cookie into a getlead call with email to attempt to
+    	get duplicates or whatever. For now, if personal information I return true.
+    	"""
+        LeadKey = self.__getattribute__('LeadKey')
+        ActivityType = self.__getattribute__('ActivityTypeFilter')
+        #temporary leadkey keytype decision maker for actually having data
+        if acttype == "Email Activity":
+            LeadKey.keyType = 'EMAIL'
+        if acttype == "Website Activity":
+            LeadKey.keyType = 'COOKIE'
+        if acttype == "Interesting Moments":
+            LeadKey.keyType = 'COOKIE'
+        if acttype == "Score":
+            LeadKey.keyType = 'COOKIE'
+        LeadKey.keyValue = cookie
+        if acttype == 'Website Activity':
+            ActivityType.includeTypes.activityType.append('VisitWebpage')
+            ActivityType.includeTypes.activityType.append('ClickLink')
+            ActivityType.includeTypes.activityType.append('FillOutForm')
+        elif acttype == 'Email Activity':
+            ActivityType.includeTypes.activityType.append('SendEmail')
+            #ActivityType.includeTypes.activityType.append('EmailDelivered')
+            ActivityType.includeTypes.activityType.append('EmailBounced') 
+            ActivityType.includeTypes.activityType.append('UnsubscribeEmail')
+            ActivityType.includeTypes.activityType.append('OpenEmail')
+            ActivityType.includeTypes.activityType.append('ClickEmail')
+            ActivityType.includeTypes.activityType.append('OpenSalesEmail')
+            ActivityType.includeTypes.activityType.append('ClickSalesEmail')
+            #ActivityType.includeTypes.activityType.append('ReceiveSalesEmail')
+        elif acttype == 'Score':
+            ActivityType.includeTypes.activityType.append('ChangeScore')
+        elif acttype == 'Interesting Moments':
+            ActivityType.includeTypes.activityType.append('InterestingMoment')
+        else:
+            return True     
+    	return self.call_service('getLeadActivity', LeadKey, ActivityType)
