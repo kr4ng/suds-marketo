@@ -21,7 +21,7 @@ class Client(object):
     Marketo SOAP Api doc: https://jira.talendforge.org/secure/attachmentzip/unzip/167201/49761%5B1%5D/Marketo%20Enterprise%20API%202%200.pdf
     """
 
-    MARKETO_WSDL = 'http://app.marketo.com/soap/mktows/2_2?WSDL'
+    MARKETO_WSDL = 'http://app.marketo.com/soap/mktows/2_3?WSDL'
     """Url of the Marketo wsdl file"""
 
     suds_types = []
@@ -228,14 +228,14 @@ class Client(object):
         return self.call_service('mergeLeads', winning_lead_key_list, losing_lead_key_list)
 
     def get_lead_activity(self, cookie, acttype=None):
-    	"""
-    	key and type.
-    	:param cookie: the marketo cookie
-    	I'll take this cookie and get all the lead activity
-    	:param type: can either be None, Email Activity, Personal Information, Website Activity, Score, Interesting Moments
-    	if it is personal information then I am probably going to have to do a getlead call with cookie into a getlead call with email to attempt to
-    	get duplicates or whatever. For now, if personal information I return true.
-    	"""
+        """
+        key and type.
+        :param cookie: the marketo cookie
+        I'll take this cookie and get all the lead activity
+        :param type: can either be None, Email Activity, Personal Information, Website Activity, Score, Interesting Moments
+        if it is personal information then I am probably going to have to do a getlead call with cookie into a getlead call with email to attempt to
+        get duplicates or whatever. For now, if personal information I return true.
+        """
         LeadKey = self.__getattribute__('LeadKey')
         ActivityType = self.__getattribute__('ActivityTypeFilter')
         #temporary leadkey keytype decision maker for actually having data
@@ -268,4 +268,113 @@ class Client(object):
             ActivityType.includeTypes.activityType.append('InterestingMoment')
         else:
             return True     
-    	return self.call_service('getLeadActivity', LeadKey, ActivityType)
+        return self.call_service('getLeadActivity', LeadKey, ActivityType)
+        
+    def sync_custom_objects(self, operation="UPSERT", objName='shoppingcart', keys=None, information=None):
+        """
+        :param objName: Name of your custom object
+        :param keys: array of tuples of your primary key/value pairs
+        :param operation: UPSERT, INSERT, or UPDATE
+        :param information: array of tuples of your custom object key/value pairs
+        
+        :(e.g.)
+        :keys = [('cartid', '1'), ('ShoppingCart', 'sc1')]
+        :information = [('orderid', '1'),('description', 'redbike'),('productname', 'The Nimbus 3000')]
+        """
+        #set the people that will be tied to the update and the update params
+        customObjList = self.__getattribute__('ArrayOfCustomObj')
+        customObj = self.__getattribute__('CustomObj')
+
+        for e in keys:
+            i = self.__getattribute__('Attribute')
+            i.attrName = e[0]
+            i.attrValue = e[1]
+            customObj[0].attribute.append(i)
+        for j in information:
+            k = self.__getattribute__('Attribute')
+            k.attrName = j[0]
+            k.attrValue = j[1]
+            customObj[1].attribute.append(k)
+        #set the object name we are updating
+        objTypeName = objName
+        #set the manner in which we update
+        if operation == 'UPSERT':
+            operation = self.__getattribute__('SyncOperationEnum')
+            operation = operation.UPSERT
+        if operation == 'INSERT':
+            operation = self.__getattribute__('SyncOperationEnum')
+            operation = operation.INSERT
+        if operation == 'UPDATE':
+            operation = self.__getattribute__('SyncOperationEnum')
+            operation = operation.UPDATE
+
+        customObjList.customObj.append(customObj)
+        
+        return self.call_service('syncCustomObjects', objTypeName, customObjList, operation)
+        
+    def sync_m_objects(self, operation='UPSERT', objType='Opportunity', oppinfo=None, exists=False, idnum=None):
+        '''
+        :Usage - First you call this with objType = Opportunity, then you call
+        it with objType = opportunityPersonRole to connect your opporutnity to
+        a person.
+        Lists of Tuples:
+        opp already exists:
+            For Opportunity: [('Name', name), Optional[(),(),(),...,()]]
+        opp doesn't already exist:
+            For Opportunity: [('Name', name), ('Id', #), Optional[(Amount, currency),(Description, string),
+                                    (IsWon, Boolean),('LeadSource', String),('CloseDate' , Datetime)]]
+        For OpportunityPersonRole: [('OpportunityId', #), ('PersonId', #), ('Role', String), [Optional[('IsPrimary', Boolean)]]]
+        '''
+        #set the manner in which we update
+        if operation == 'UPSERT':
+            operation = self.__getattribute__('SyncOperationEnum')
+            operation = operation.UPSERT
+        if operation == 'INSERT':
+            operation = self.__getattribute__('SyncOperationEnum')
+            operation = operation.INSERT
+        if operation == 'UPDATE':
+            operation = self.__getattribute__('SyncOperationEnum')
+            operation = operation.UPDATE
+        
+        #Describe the SOAP MESSAGE    
+        mObjectList = self.__getattribute__('ArrayOfMObject')
+        mObject = self.__getattribute__('MObject')
+        typeattrib = self.__getattribute__('TypeAttrib')
+        attribs = self.__getattribute__('ArrayOfAttrib')
+        
+        if objType == 'Opportunity':
+            mObject.type = 'Opportunity'
+            #for updating existing orders/opps
+            if exists:
+                mObject.id = idnum
+                mObject.createdAt = '2014-01-27T12:38:44-05:00'
+                mObject.updatedAt = '2014-01-31T12:38:44-05:00'
+                #TODO
+            #new order creation
+            else:
+                mObject.createdAt = '2014-01-27T12:38:44-05:00'
+                mObject.updatedAt = '2014-01-31T12:38:44-05:00'
+                for e in oppinfo:
+                    i = self.__getattribute__('Attrib')
+                    i.name = e[0]
+                    i.value = e[1]
+                    mObject.attribList.attrib.append(i)                   
+            mObjectList.mObject.append(mObject)
+
+        if objType == 'OpportunityPersonRole':
+            mObject.type = 'OpportunityPersonRole'
+            for e in oppinfo:
+                i = self.__getattribute__('Attrib')
+                i.name = e[0]
+                i.value = e[1]
+                mObject.attribList.attrib.append(i)   
+            mObjectList.mObject.append(mObject)
+
+        return self.call_service('syncMObjects', mObjectList, operation)
+        
+    def describe_m_objects(self, objName):
+        '''
+        objName is String
+        '''
+        return self.call_service('describeMObject', objName)
+        
