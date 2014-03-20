@@ -8,7 +8,7 @@ setup(
     author=u'Arthur Rio',
     author_email='arthur@punchtab.com',
     packages=find_packages(),
-    url='https://github.com/kr4ng/suds-marketo/',
+    url='https://github.com/PunchTab/suds-marketo/',
     license='BSD licence, see LICENCE',
     description='Python wrapper of the Marketo SOAP Api using SUDS.',
     long_description=open('README.md').read(),
